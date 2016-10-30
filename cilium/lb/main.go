@@ -24,7 +24,6 @@ import (
 	"strconv"
 
 	"github.com/cilium/cilium/bpf/lbmap"
-	"github.com/cilium/cilium/common"
 	"github.com/cilium/cilium/common/bpf"
 
 	"github.com/codegangsta/cli"
@@ -198,7 +197,12 @@ func cliDumpServices(ctx *cli.Context) {
 		fmt.Fprintf(os.Stderr, "Warning: Unable to dump map: %s\n", err)
 	}
 
-	for k1 := range dumpTable {
+	var keys []string
+	for k := range dumpTable {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k1 := range keys {
 		fmt.Printf("%s =>\n", k1)
 		sort.Ints(dumpTable[k1].Keys)
 		for _, k2 := range dumpTable[k1].Keys {
@@ -312,7 +316,7 @@ func cliUpdateService(ctx *cli.Context) {
 		backends = append(backends, tcpAddr)
 	}
 
-	idx := int(common.FirstFreeServiceID)
+	idx := 1
 	for k := range backends {
 		key.SetBackend(idx)
 		if err := svc.SetAddress(backends[k].IP); err != nil {
@@ -332,20 +336,20 @@ func cliUpdateService(ctx *cli.Context) {
 			os.Exit(1)
 		}
 
-		if addRev {
-			revKey := svc.RevNatKey()
-			revVal := key.RevNatValue()
+		idx++
+	}
 
-			fmt.Printf("Adding %+v %+v\n", revKey, revVal)
-			if err := lbmap.UpdateRevNat(revKey, revVal); err != nil {
-				fmt.Fprintf(os.Stderr, "%s\n", err)
-				os.Exit(1)
-			}
+	if addRev {
+		revKey := svc.RevNatKey()
+		revVal := key.RevNatValue()
 
-			fmt.Printf("Added reverse NAT entry\n")
+		fmt.Printf("Adding %+v %+v\n", revKey, revVal)
+		if err := lbmap.UpdateRevNat(revKey, revVal); err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			os.Exit(1)
 		}
 
-		idx++
+		fmt.Printf("Added reverse NAT entry\n")
 	}
 
 	// Create master service last to avoid hitting backends all of
